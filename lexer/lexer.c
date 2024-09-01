@@ -132,7 +132,7 @@ Token nextToken(Lexer *lexer) {
             advance(lexer);
             break;
         case '#':
-            size_t start; size_t start = lexer->index;
+            size_t start; start = lexer->index;
             advance(lexer);
             if (currentChar(lexer) == 'v') {
                 advance(lexer);
