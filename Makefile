@@ -1,6 +1,6 @@
 # Variables
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c11
+CFLAGS = -Wall -Wextra -std=c99
 TARGET = chromo-1
 SRC = lexer/lexer.c
 OBJ = $(SRC:.c=.o)
