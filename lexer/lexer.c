@@ -82,15 +82,27 @@ Token get_string(const char **src) {
     Token token;
     token.type = TOKEN_STRING;
     int length = 0;
-    advance(src);
+    advance(src);  // Skip opening quote
     while (**src && **src != '"') {
         token.value[length++] = **src;
         advance(src);
     }
     if (**src == '"') {
-        advance(src);
+        advance(src);  // Skip closing quote
     } else {
         error("Unterminated string literal");
+    }
+    token.value[length] = '\0';
+    return token;
+}
+
+Token get_config(const char **src) {
+    Token token;
+    token.type = TOKEN_CONFIG;
+    int length = 0;
+    while (**src && **src != '\n') {
+        token.value[length++] = **src;
+        advance(src);
     }
     token.value[length] = '\0';
     return token;
@@ -114,6 +126,11 @@ Token get_token(const char **src) {
     if (**src == '"') {
         return get_string(src);
     }
+    if (**src == '_') {
+        if (strncmp(*src, "_CONFIG", 7) == 0) {
+            return get_config(src);
+        }
+    }
     switch (**src) {
         case '+': 
         case '-': 
@@ -127,14 +144,9 @@ Token get_token(const char **src) {
         case ';': token.type = TOKEN_SEMICOLON; break;
         case '(': token.type = TOKEN_LPAREN; break;
         case ')': token.type = TOKEN_RPAREN; break;
-        case '_': 
-            if (strncmp(*src, "_CONFIG", 7) == 0) {
-                token.type = TOKEN_CONFIG;
-                strncpy(token.value, "_CONFIG", MAX_TOKEN_LENGTH);
-                advance(src); advance(src); advance(src); advance(src); advance(src); advance(src); advance(src);
-                return token;
-            }
-            break;
+        case '\n':
+            advance(src);
+            return get_token(src);  // Recurse to handle new line
         default:
             token.type = TOKEN_INVALID;
             snprintf(token.value, MAX_TOKEN_LENGTH, "Invalid character '%c'", **src);
@@ -192,7 +204,7 @@ int main() {
     while ((token = get_token(&src)).type != TOKEN_EOF) {
         print_token(token);
     }
-    print_token(token);
+    print_token(token);  // Print EOF token
 
     return 0;
 }
