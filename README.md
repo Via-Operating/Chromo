@@ -1,2 +1,2 @@
 # Chromo
-A general scripting low-level language for Via
+A general scripting low-level language for devices running on the VDK kernel
