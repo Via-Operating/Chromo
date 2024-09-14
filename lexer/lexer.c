@@ -1,185 +1,198 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
 
-// Token types
+#define MAX_TOKEN_LENGTH 256
+
 typedef enum {
-    TOKEN_IDENTIFIER,
     TOKEN_NUMBER,
-    TOKEN_COLON,
-    TOKEN_BRACE_OPEN,
-    TOKEN_BRACE_CLOSE,
-    TOKEN_SEMICOLON, // Never gonna be used (yet) :(
-    TOKEN_ASSIGN,
-    TOKEN_SUBCLUSIVE,
-    TOKEN_UNKNOWN,
-    TOKEN_EOF
+    TOKEN_IDENTIFIER,
+    TOKEN_STRING,
+    TOKEN_OPERATOR,
+    TOKEN_EQUALS,
+    TOKEN_SEMICOLON,
+    TOKEN_LPAREN,
+    TOKEN_RPAREN,
+    TOKEN_CONFIG,
+    TOKEN_KEYWORD,
+    TOKEN_EOF,
+    TOKEN_INVALID
 } TokenType;
 
 typedef struct {
     TokenType type;
-    char text[256];
-    int line;
-    int column;
+    char value[MAX_TOKEN_LENGTH];
 } Token;
 
-typedef struct {
-    const char *source;
-    size_t length;
-    size_t index;
-    int line;
-    int column;
-} Lexer;
+const char *keywords[] = {"FUNC", "ADP", "STR", "ART", "OUTLOG", "OUTWAR", "OUTDEB", "OUTERR", "VAR", "CONFIG"};
 
-void initLexer(Lexer *lexer, const char *source);
-Token nextToken(Lexer *lexer);
-void printToken(Token token);
-
-void initLexer(Lexer *lexer, const char *source) {
-    lexer->source = source;
-    lexer->length = strlen(source);
-    lexer->index = 0;
-    lexer->line = 1;
-    lexer->column = 1;
+void error(const char *message) {
+    fprintf(stderr, "Error: %s\n", message);
+    exit(EXIT_FAILURE);
 }
 
-char currentChar(Lexer *lexer) {
-    return lexer->index < lexer->length ? lexer->source[lexer->index] : '\0';
+void advance(const char **src) {
+    (*src)++;
 }
 
-void advance(Lexer *lexer) {
-    if (currentChar(lexer) == '\n') {
-        lexer->line++;
-        lexer->column = 1;
-    } else {
-        lexer->column++;
-    }
-    lexer->index++;
-}
-
-void skipWhitespace(Lexer *lexer) {
-    while (isspace(currentChar(lexer))) {
-        advance(lexer);
+void skip_whitespace(const char **src) {
+    while (**src && isspace(**src)) {
+        advance(src);
     }
 }
 
-Token nextToken(Lexer *lexer) {
+int is_keyword(const char *identifier) {
+    for (int i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++) {
+        if (strcmp(identifier, keywords[i]) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+Token get_number(const char **src) {
     Token token;
-    token.line = lexer->line;
-    token.column = lexer->column;
-    token.text[0] = '\0';
-
-    skipWhitespace(lexer);
-
-    char c = currentChar(lexer);
-
-    if (c == '\0') {
-        token.type = TOKEN_EOF;
-        return token;
+    token.type = TOKEN_NUMBER;
+    int length = 0;
+    while (**src && isdigit(**src)) {
+        token.value[length++] = **src;
+        advance(src);
     }
-
-    if (isalpha(c) || c == '_') {
-        size_t start = lexer->index;
-        while (isalnum(currentChar(lexer)) || currentChar(lexer) == '_') {
-            advance(lexer);
-        }
-        strncpy(token.text, lexer->source + start, lexer->index - start);
-        token.text[lexer->index - start] = '\0';
-        token.type = TOKEN_IDENTIFIER;
-        return token;
-    }
-
-    if (isdigit(c)) {
-        size_t start = lexer->index;
-        while (isdigit(currentChar(lexer))) {
-            advance(lexer);
-        }
-        strncpy(token.text, lexer->source + start, lexer->index - start);
-        token.text[lexer->index - start] = '\0';
-        token.type = TOKEN_NUMBER;
-        return token;
-    }
-
-    switch (c) {
-        case ':':
-            token.type = TOKEN_COLON;
-            token.text[0] = ':';
-            token.text[1] = '\0';
-            advance(lexer);
-            break;
-        case '{':
-            token.type = TOKEN_BRACE_OPEN;
-            token.text[0] = '{';
-            token.text[1] = '\0';
-            advance(lexer);
-            break;
-        case '}':
-            token.type = TOKEN_BRACE_CLOSE;
-            token.text[0] = '}';
-            token.text[1] = '\0';
-            advance(lexer);
-            break;
-        case ';':
-            token.type = TOKEN_SEMICOLON;
-            token.text[0] = ';';
-            token.text[1] = '\0';
-            advance(lexer);
-            break;
-        case '=':
-            token.type = TOKEN_ASSIGN;
-            token.text[0] = '=';
-            token.text[1] = '\0';
-            advance(lexer);
-            break;
-        case '#':
-            size_t start; start = lexer->index;
-            advance(lexer);
-            if (currentChar(lexer) == 'v') {
-                advance(lexer);
-                if (strncmp(lexer->source + start, "#var", 4) == 0) {
-                    token.type = TOKEN_IDENTIFIER;
-                    strncpy(token.text, "#var", 4);
-                    token.text[4] = '\0';
-                } else {
-                    token.type = TOKEN_UNKNOWN;
-                    strncpy(token.text, lexer->source + start, lexer->index - start);
-                    token.text[lexer->index - start] = '\0';
-                }
-            } else {
-                token.type = TOKEN_UNKNOWN;
-                strncpy(token.text, lexer->source + start, lexer->index - start);
-                token.text[lexer->index - start] = '\0';
-            }
-            break;
-        default:
-            token.type = TOKEN_UNKNOWN;
-            token.text[0] = c;
-            token.text[1] = '\0';
-            advance(lexer);
-            break;
-    }
-
+    token.value[length] = '\0';
     return token;
 }
 
-void printToken(Token token) {
-    const char *typeNames[] = {
-        "IDENTIFIER", "NUMBER", "COLON", "BRACE_OPEN", "BRACE_CLOSE", "SEMICOLON", "ASSIGN", "SUBCLUSIVE", "UNKNOWN", "EOF"
-    };
-    printf("Token: %d, Type: %s, Text: '%s', Line: %d, Column: %d\n",
-           token.type, typeNames[token.type], token.text, token.line, token.column);
+Token get_identifier(const char **src) {
+    Token token;
+    token.type = TOKEN_IDENTIFIER;
+    int length = 0;
+    while (**src && (isalnum(**src) || **src == '_')) {
+        token.value[length++] = **src;
+        advance(src);
+    }
+    token.value[length] = '\0';
+    if (is_keyword(token.value)) {
+        token.type = TOKEN_KEYWORD;
+    }
+    return token;
+}
+
+Token get_string(const char **src) {
+    Token token;
+    token.type = TOKEN_STRING;
+    int length = 0;
+    advance(src);
+    while (**src && **src != '"') {
+        token.value[length++] = **src;
+        advance(src);
+    }
+    if (**src == '"') {
+        advance(src);
+    } else {
+        error("Unterminated string literal");
+    }
+    token.value[length] = '\0';
+    return token;
+}
+
+Token get_token(const char **src) {
+    skip_whitespace(src);
+
+    Token token;
+    if (**src == '\0') {
+        token.type = TOKEN_EOF;
+        strcpy(token.value, "EOF");
+        return token;
+    }
+    if (isdigit(**src)) {
+        return get_number(src);
+    }
+    if (isalpha(**src) || **src == '_') {
+        return get_identifier(src);
+    }
+    if (**src == '"') {
+        return get_string(src);
+    }
+    switch (**src) {
+        case '+': 
+        case '-': 
+        case '*': 
+        case '/':
+            token.type = TOKEN_OPERATOR;
+            snprintf(token.value, MAX_TOKEN_LENGTH, "%c", **src);
+            advance(src);
+            return token;
+        case '=': token.type = TOKEN_EQUALS; break;
+        case ';': token.type = TOKEN_SEMICOLON; break;
+        case '(': token.type = TOKEN_LPAREN; break;
+        case ')': token.type = TOKEN_RPAREN; break;
+        case '_': 
+            if (strncmp(*src, "_CONFIG", 7) == 0) {
+                token.type = TOKEN_CONFIG;
+                strncpy(token.value, "_CONFIG", MAX_TOKEN_LENGTH);
+                advance(src); advance(src); advance(src); advance(src); advance(src); advance(src); advance(src);
+                return token;
+            }
+            break;
+        default:
+            token.type = TOKEN_INVALID;
+            snprintf(token.value, MAX_TOKEN_LENGTH, "Invalid character '%c'", **src);
+            return token;
+    }
+    snprintf(token.value, MAX_TOKEN_LENGTH, "%c", **src);
+    advance(src);
+    return token;
+}
+
+void print_token(Token token) {
+    switch (token.type) {
+        case TOKEN_NUMBER:
+            printf("NUMBER(%s)\n", token.value);
+            break;
+        case TOKEN_IDENTIFIER:
+        case TOKEN_KEYWORD:
+            printf("IDENTIFIER(%s)\n", token.value);
+            break;
+        case TOKEN_STRING:
+            printf("STRING(%s)\n", token.value);
+            break;
+        case TOKEN_OPERATOR:
+            printf("OPERATOR(%s)\n", token.value);
+            break;
+        case TOKEN_EQUALS:
+            printf("EQUALS\n");
+            break;
+        case TOKEN_SEMICOLON:
+            printf("SEMICOLON\n");
+            break;
+        case TOKEN_LPAREN:
+            printf("LPAREN\n");
+            break;
+        case TOKEN_RPAREN:
+            printf("RPAREN\n");
+            break;
+        case TOKEN_CONFIG:
+            printf("CONFIG(%s)\n", token.value);
+            break;
+        case TOKEN_EOF:
+            printf("EOF\n");
+            break;
+        case TOKEN_INVALID:
+            printf("INVALID(%s)\n", token.value);
+            break;
+    }
 }
 
 int main() {
-    const char *code = "#var:struct MyStruct { int x; int y; x = 10; y = 20; } subclusive:#";
-    Lexer lexer;
-    initLexer(&lexer, code);
-
+    const char *source_code = "_CONFIG-349:\n_ART-ORD = \"BODMAS\"\nADP myVar = 6;\nFUNC myFunc(x, y) { OUTLOG \"Sum is: \" + x + y; }";
+    const char *src = source_code;
     Token token;
-    do {
-        token = nextToken(&lexer);
-        printToken(token);
-    } while (token.type != TOKEN_EOF);
+
+    while ((token = get_token(&src)).type != TOKEN_EOF) {
+        print_token(token);
+    }
+    print_token(token);
 
     return 0;
 }
